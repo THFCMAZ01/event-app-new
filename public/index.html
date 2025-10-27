@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Event App</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    form {
+      max-width: 400px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    #events {
+      max-width: 600px;
+      margin: 20px auto;
+    }
+    p {
+      background: #fff;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #logout {
+      display: none;
+      width: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Event Management</h1>
+  <form id="login">
+    <input type="email" placeholder="Email" id="email">
+    <input type="password" placeholder="Password" id="pass">
+    <button type="submit">Login</button>
+  </form>
+  <div id="events"></div>
+  <form id="create-event" style="display:none">
+    <input type="text" placeholder="Title" id="title">
+    <input type="text" placeholder="Description" id="desc">
+    <input type="datetime-local" id="date">
+    <input type="text" placeholder="Location" id="loc">
+    <button type="submit">Create Event</button>
+  </form>
+  <form id="approve-event" style="display:none">
+    <input type="text" placeholder="Event ID" id="event-id">
+    <button type="submit">Approve Event</button>
+  </form>
+  <button id="logout" style="display:none">Logout</button>
+  <script>
+    let token = '';
+    let role = '';
+    const ws = new WebSocket('ws://localhost:3000/ws');
+    ws.onopen = () => { console.log('WS open'); ws.send('Subscribe'); };
+    ws.onmessage = (msg) => { console.log('Update:', msg.data); fetchEvents(); };
+    document.getElementById('login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('pass').value;
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        token = data.token;
+        role = JSON.parse(atob(token.split('.')[1])).role;
+        document.getElementById('login').style.display = 'none';
+        if (role === 'ORGANIZER') document.getElementById('create-event').style.display = 'block';
+        if (role === 'ADMIN') document.getElementById('approve-event').style.display = 'block';
+        document.getElementById('logout').style.display = 'block';
+        fetchEvents();
+      } catch (e) {
+        alert('Login failed: ' + e.message);
+      }
+    });
+    document.getElementById('create-event').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('desc').value,
+        date: new Date(document.getElementById('date').value).toISOString(),
+        location: document.getElementById('loc').value
+      };
+      try {
+        const res = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        alert('Event created');
+        fetchEvents();
+      } catch (e) {
+        alert('Create failed: ' + e.message);
+      }
+    });
+    document.getElementById('approve-event').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const eventId = document.getElementById('event-id').value;
+      try {
+        const res = await fetch(`/api/events/${eventId}/approve`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        alert('Event approved');
+        fetchEvents();
+      } catch (e) {
+        alert('Approve failed: ' + e.message);
+      }
+    });
+    document.getElementById('logout').addEventListener('click', () => {
+      token = '';
+      role = '';
+      document.getElementById('login').style.display = 'block';
+      document.getElementById('create-event').style.display = 'none';
+      document.getElementById('approve-event').style.display = 'none';
+      document.getElementById('logout').style.display = 'none';
+      document.getElementById('events').innerHTML = '';
+    });
+    async function fetchEvents() {
+      if (!token) return;
+      try {
+        const res = await fetch('/api/events', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const events = await res.json();
+        document.getElementById('events').innerHTML = events.map(e => `
+          <p>${e.title} (${e.approved ? 'Approved' : 'Pending'}) - ${new Date(e.date).toLocaleString()}
+          <button onclick="rsvp('${e.id}', 'GOING')">Going</button>
+          <button onclick="rsvp('${e.id}', 'MAYBE')">Maybe</button>
+          </p>`).join('');
+      } catch (e) {
+        console.error('Fetch error:', e);
+      }
+    }
+    async function rsvp(eventId, status) {
+      try {
+        const res = await fetch(`/api/events/${eventId}/rsvp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ status })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        alert('RSVP updated');
+        fetchEvents();
+      } catch (e) {
+        alert('RSVP failed: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

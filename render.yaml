@@ -1,0 +1,21 @@
+services:
+- type: web
+  name: event-app
+  env: node
+  buildCommand: npm install && npx prisma generate && npm run build
+  startCommand: npm start
+  envVars:
+  - key: NODE_VERSION
+    value: 20
+  - key: DATABASE_URL
+    value: postgresql://neondb_owner:npg_Cyn3J1ZIGbma@ep-soft-hall-ab0rojhk-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require
+  - key: JWT_SECRET
+    generateValue: true
+  - key: ETHEREAL_HOST
+    value: smtp.ethereal.email
+  - key: ETHEREAL_PORT
+    value: 587
+  - key: ETHEREAL_USER
+    value: laurianne.schmeler@ethereal.email
+  - key: ETHEREAL_PASS
+    value: FJ5k1k8cqzubbVbUD4
