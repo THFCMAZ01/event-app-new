@@ -1,26 +1,30 @@
-import { Elysia } from 'elysia';
-import { verifyToken } from '../utils/jwt.utils';
+const JWT_SECRET = process.env.JWT_SECRET;
 
-export const jwtMiddleware = new Elysia().derive({ as: 'global' }, async ({ headers, set }) => {
-  const auth = headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    set.status = 401;
-    return { error: 'Unauthorized' };
-  }
-  const token = auth.split(' ')[1];
-  const user = verifyToken(token);
-  if (!user) {
-    set.status = 401;
-    return { error: 'Invalid token' };
-  }
-  return { user };
-});
-
-export function roleMiddleware(role: string) {
-  return new Elysia().onBeforeHandle(({ user, set }) => {
-    if (!user || user.role !== role) {
-      set.status = 403;
-      return { error: 'Forbidden' };
-    }
-  });
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set in the environment variables!');
 }
+
+// Optional JWT Middleware that allows unauthenticated access to specified routes
+export const jwtMiddleware = (req, res, next) => {
+  const exemptRoutes = ['/signup', '/login'];
+  
+  if (exemptRoutes.includes(req.path)) {
+    return next();  // Skip JWT check for these routes
+  }
+  
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token missing or malformed' });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;  // Attach user to request object
+    next();  // Proceed
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
