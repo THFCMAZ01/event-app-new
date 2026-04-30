@@ -1,3 +1,5 @@
+This is an Event monolith app that provides real-time event management with different roles(admin, organizer, attendee)
+
  Event App
 
  Setup
