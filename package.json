@@ -6,7 +6,7 @@
     "dev": "prisma generate && tsx watch src/index.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
-    "postinstall": "prisma generate",           // Important for Vercel
+    "postinstall": "prisma generate",
     "vercel-build": "prisma generate && prisma migrate deploy && tsc"
   },
   "keywords": [],
