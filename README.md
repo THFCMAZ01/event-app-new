@@ -10,10 +10,10 @@
 
  Features
 - Auth with roles (ADMIN, ORGANIZER, ATTENDEE)
-- Event CRUD, approval, RSVP
+- Event CRUD,approval,RSVP
 - Realtime WebSocket updates
 - Email notifications via Ethereal
-- Zod validation, SOLID principles
+- Zod validation,SOLID principles
 
  Test
 - Insomnia: APIs at http://localhost:3000/swagger, WS at ws://localhost:3000/ws
