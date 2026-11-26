@@ -1,48 +1,60 @@
+import 'dotenv/config';
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import { node } from '@elysiajs/node';
 import { staticPlugin } from '@elysiajs/static';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma/client';
 import authRoutes from './routes/auth.routes';
 import eventRoutes from './routes/event.routes';
-import { jwtMiddleware } from './middleware/auth.middleware';
+import { configureRealtimePublisher } from './services/realtime.service';
 
-const prisma = new PrismaClient();
+const port = Number(process.env.PORT) || 3000;
 
 const app = new Elysia({ adapter: node() })
   .use(swagger())
   .use(staticPlugin({ assets: 'public', prefix: '/' }))
-  .use(jwtMiddleware)
-  .group('/api', (app) => app
+  .group('/api', (api) => api
     .use(authRoutes)
     .use(eventRoutes)
   )
   .ws('/ws', {
     open(ws) {
-      console.log('WS connected');
+      console.log('WebSocket connected');
       ws.subscribe('events');
     },
-    message(ws, message) {
-      console.log('WS msg:', message);
+    message(_ws, message) {
+      console.log('WebSocket message:', message);
     },
-    close(ws) {
-      console.log('WS closed');
-    }
+    close() {
+      console.log('WebSocket disconnected');
+    },
   })
   .onError(({ code, error, set }) => {
     console.error(code, error);
-    set.status = 500;
-    return { error: 'Server Error' };
+
+    if (code === 'VALIDATION') {
+      set.status = 400;
+      return { error: 'Request validation failed' };
+    }
+
+    if (set.status === 200) {
+      set.status = 500;
+    }
+
+    return { error: 'Server error' };
   })
-  .listen(3000);
+  .listen(port);
 
-console.log(`Server at http://localhost:3000`);
+configureRealtimePublisher((channel, payload) => {
+  app.server?.publish(channel, JSON.stringify(payload));
+});
 
-export function broadcastUpdate(channel: string, data: any) {
-  app.server?.publish(channel, JSON.stringify(data));
-}
+console.log(`Event app running on port ${port}`);
 
-process.on('SIGTERM', async () => {
+async function shutdown() {
   await prisma.$disconnect();
   process.exit(0);
-});
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

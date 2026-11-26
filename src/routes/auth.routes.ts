@@ -6,12 +6,11 @@ export default new Elysia()
     body: t.Object({
       email: t.String({ format: 'email', error: 'Invalid email' }),
       password: t.String({ minLength: 6, error: 'Password too short' }),
-      role: t.Optional(t.Enum({ ADMIN: 'ADMIN', ORGANIZER: 'ORGANIZER', ATTENDEE: 'ATTENDEE' }))
-    })
+    }),
   })
   .post('/login', ({ body, set }) => login({ body, set }), {
     body: t.Object({
       email: t.String({ format: 'email', error: 'Invalid email' }),
-      password: t.String({ minLength: 6, error: 'Password too short' })
-    })
+      password: t.String({ minLength: 6, error: 'Password too short' }),
+    }),
   });

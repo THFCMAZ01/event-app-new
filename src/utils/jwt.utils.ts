@@ -6,13 +6,36 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is not set');
 }
 
-export function signToken(payload: object): string {
+export type AppUserRole = 'ADMIN' | 'ORGANIZER' | 'ATTENDEE';
+
+export interface AuthenticatedUser {
+  id: string;
+  role: AppUserRole;
+}
+
+const validRoles = new Set<AppUserRole>(['ADMIN', 'ORGANIZER', 'ATTENDEE']);
+
+export function signToken(payload: AuthenticatedUser): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
 }
 
-export function verifyToken(token: string): any {
+export function verifyToken(token: string): AuthenticatedUser | null {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    if (
+      typeof payload === 'string' ||
+      typeof payload.id !== 'string' ||
+      typeof payload.role !== 'string' ||
+      !validRoles.has(payload.role as AppUserRole)
+    ) {
+      return null;
+    }
+
+    return {
+      id: payload.id,
+      role: payload.role as AppUserRole,
+    };
   } catch {
     return null;
   }
