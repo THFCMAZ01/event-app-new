@@ -1,30 +1,49 @@
-const JWT_SECRET = process.env.JWT_SECRET;
+import { Elysia } from 'elysia';
+import {
+  verifyToken,
+  type AppUserRole,
+  type AuthenticatedUser,
+} from '../utils/jwt.utils';
 
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not set in the environment variables!');
+/**
+ * Adds an optional authenticated user to the Elysia request context.
+ * Public routes may continue without a token; protected routes use roleMiddleware.
+ */
+export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
+  { as: 'scoped' },
+  ({ headers }) => {
+    const authorization = headers.authorization;
+    const user =
+      authorization?.startsWith('Bearer ')
+        ? verifyToken(authorization.slice('Bearer '.length))
+        : null;
+
+    return { user };
+  },
+);
+
+interface RoleGuardContext {
+  user: AuthenticatedUser | null;
+  set: { status?: number | string };
 }
 
-// Optional JWT Middleware that allows unauthenticated access to specified routes
-export const jwtMiddleware = (req, res, next) => {
-  const exemptRoutes = ['/signup', '/login'];
-  
-  if (exemptRoutes.includes(req.path)) {
-    return next();  // Skip JWT check for these routes
-  }
-  
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token missing or malformed' });
-  }
-  
-  const token = authHeader.split(' ')[1];
-  
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;  // Attach user to request object
-    next();  // Proceed
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
+/**
+ * Elysia beforeHandle hook that requires one or more application roles.
+ */
+export function roleMiddleware(requiredRoles: AppUserRole | AppUserRole[]) {
+  const allowedRoles = Array.isArray(requiredRoles)
+    ? requiredRoles
+    : [requiredRoles];
+
+  return ({ user, set }: RoleGuardContext) => {
+    if (!user) {
+      set.status = 401;
+      return { error: 'Authentication required' };
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+      set.status = 403;
+      return { error: 'Insufficient permissions' };
+    }
+  };
+}
