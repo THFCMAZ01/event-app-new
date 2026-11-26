@@ -24,7 +24,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
 
 interface RoleGuardContext {
   user: AuthenticatedUser | null;
-  set: { status: number | string };
+  set: { status?: number | string };
 }
 
 /**
